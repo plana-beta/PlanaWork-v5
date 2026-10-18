@@ -1,6 +1,7 @@
 import React from 'react';
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { resilientStorage, sanitizeHydratedState } from './lib/resilientStorage';
 import { BikeComponent, MetricData, PmcData, EventGoal } from './types';
 import { AthleteProfile, PlannedWorkout, ActualWorkout } from './domain/models';
 import { CoachDecision } from './domain/coachTypes';
@@ -298,6 +299,13 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'plana-storage',
+      storage: createJSONStorage(() => resilientStorage),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          const sanitized = sanitizeHydratedState(state);
+          Object.assign(state, sanitized);
+        }
+      },
       partialize: (state) => ({
         athleteProfile: state.athleteProfile,
         ftp: state.ftp,

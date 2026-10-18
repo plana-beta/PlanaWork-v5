@@ -110,6 +110,22 @@ export interface CoachActionExecutionResult {
   recalculatedWeeklyLoad: number;
   recalculatedPmcCount: number;
   error?: string;
+  rolledBack?: boolean;
+  isObsolete?: boolean;
+  alreadyExecuted?: boolean;
+  alreadyRejected?: boolean;
+  loadDelta?: number;
+  affectedWorkouts?: Array<{
+    id: string;
+    sport: string;
+    date: string;
+    title: string;
+    durationMin?: number;
+    targetTss?: number;
+    status?: string;
+  }>;
+  appliedModifications?: ProposedWorkoutModification[];
+  [key: string]: unknown;
 }
 
 export type CoachDecisionStatus =
@@ -118,7 +134,9 @@ export type CoachDecisionStatus =
   | 'REJECTED'
   | 'MODIFIED'
   | 'EXECUTED'
-  | 'FAILED';
+  | 'FAILED'
+  | 'OBSOLETE'
+  | 'ROLLBACK';
 
 export interface CoachDecision {
   id: string;

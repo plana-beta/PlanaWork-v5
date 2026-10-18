@@ -134,13 +134,23 @@ export class CoachService {
 
     // Étape 2 : Si connecté au serveur Express avec Gemini actif, enrichir la réponse
     try {
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timeoutId = controller ? setTimeout(() => controller.abort(), 10000) : null;
+
       const response = await fetch('/api/coach', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ prompt, context })
+        body: JSON.stringify({ prompt, context }),
+        signal: controller?.signal
       });
+
+      if (timeoutId) clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`Serveur HTTP ${response.status}: indisponible`);
+      }
 
       if (response.ok) {
         const data = await response.json();

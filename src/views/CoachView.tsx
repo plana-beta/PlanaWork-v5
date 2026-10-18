@@ -13,7 +13,15 @@ interface ChatMessage {
   text: string;
   action?: string | null;
   proposal?: CoachProposal | null;
-  proposalStatus?: 'pending' | 'accepted' | 'refused' | 'modified';
+  proposalStatus?: 'pending' | 'accepted' | 'refused' | 'modified' | 'obsolete' | 'error';
+  executionSummary?: {
+    message: string;
+    loadDelta?: number;
+    newLoad?: number;
+    updatedCount?: number;
+    affectedWorkouts?: Array<{ id: string; sport: string; date: string; title: string }>;
+  };
+  errorMessage?: string;
   questions?: CoachQuestion[];
   answeredQuestionId?: string;
   timestamp: Date;
@@ -63,7 +71,8 @@ export default function CoachView() {
     const response = await coachService.askCoach(userText);
     setIsLoading(false);
 
-    if (response.success) {
+    if (response.success || response.turn || response.proposal) {
+      const isOfflineFallback = !response.success;
       if (response.proposal && response.validationResult) {
         // Enregistrer la proposition dans l'audit (PROPOSED)
         useAppStore.getState().addCoachDecision?.({
@@ -79,13 +88,17 @@ export default function CoachView() {
       setMessages(prev => [...prev, {
         id: `c-${Date.now()}`,
         sender: 'coach',
-        text: response.message,
+        text: response.turn?.coachResponse || response.message,
         action: response.suggestedAction,
         proposal: response.validationResult?.valid ? response.proposal : null,
         proposalStatus: response.validationResult?.valid ? 'pending' : undefined,
         questions: response.questions,
         timestamp: new Date()
       }]);
+
+      if (isOfflineFallback) {
+        setError("Mode hors-ligne : réponse formulée par le moteur déterministe local de Plana.");
+      }
     } else {
       setError(response.message || "Erreur de connexion au coach.");
     }
@@ -144,27 +157,74 @@ export default function CoachView() {
 
   // Traitement [Valider] - Déclenche CoachActionExecutor uniquement après validation explicite
   const handleValidateProposal = (messageId: string, proposal: CoachProposal) => {
+    if (isExecuting) return;
+
+    // Vérifier si déjà validé dans le state local
+    const targetMsg = messages.find(m => m.id === messageId);
+    if (targetMsg && targetMsg.proposalStatus === 'accepted') {
+      return;
+    }
+
     setIsExecuting(true);
     setError(null);
 
     try {
       const result = coachService.executeProposal(proposal, {
-        userMessage: messages.find(m => m.id === messageId)?.text
+        userMessage: targetMsg?.text
       });
 
       if (result.success) {
         setMessages(prev =>
           prev.map(m =>
-            m.id === messageId ? { ...m, proposalStatus: 'accepted' } : m
+            m.id === messageId ? {
+              ...m,
+              proposalStatus: 'accepted',
+              executionSummary: {
+                message: result.message,
+                newLoad: result.recalculatedWeeklyLoad,
+                loadDelta: result.loadDelta,
+                updatedCount: result.updatedWorkoutsCount,
+                affectedWorkouts: result.affectedWorkouts
+              }
+            } : m
           )
         );
         setSuccessNotice(
-          `${result.message} Ta charge hebdomadaire cible est maintenant de ${result.recalculatedWeeklyLoad} TSS.`
+          `${result.message} Ta charge hebdomadaire cible est de ${result.recalculatedWeeklyLoad} TSS.`
+        );
+      } else if (result.isObsolete) {
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === messageId ? { ...m, proposalStatus: 'obsolete', errorMessage: result.message } : m
+          )
+        );
+        setError(result.message);
+      } else if (result.alreadyExecuted) {
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === messageId ? { ...m, proposalStatus: 'accepted', errorMessage: result.message } : m
+          )
+        );
+      } else if (result.alreadyRejected) {
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === messageId ? { ...m, proposalStatus: 'refused', errorMessage: result.message } : m
+          )
         );
       } else {
-        setError(`Échec de l'ajustement du plan : ${result.message}`);
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === messageId ? { ...m, proposalStatus: 'error', errorMessage: result.message } : m
+          )
+        );
+        setError(result.message || "Échec de l'ajustement du plan.");
       }
     } catch (err: any) {
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === messageId ? { ...m, proposalStatus: 'error', errorMessage: err.message } : m
+        )
+      );
       setError(`Erreur lors de l'exécution : ${err.message}`);
     } finally {
       setIsExecuting(false);
@@ -188,13 +248,15 @@ export default function CoachView() {
     );
   };
 
-  // Traitement [Modifier] - Traçabilité MODIFIED
+  // Traitement [Modifier] - Traçabilité MODIFIED avec revalidation
   const handleModifyProposal = (messageId: string, updatedProposal: CoachProposal) => {
+    const valResult = coachService.validateProposal(updatedProposal);
+
     useAppStore.getState().addCoachDecision?.({
       id: `dec-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       createdAt: new Date().toISOString(),
       proposal: updatedProposal,
-      validationResult: { valid: true, errors: [], warnings: [] },
+      validationResult: valResult,
       userDecision: 'MODIFIED',
       appliedChanges: updatedProposal.proposedModifications
     });
@@ -271,7 +333,7 @@ export default function CoachView() {
                               key={opt.value}
                               type="button"
                               onClick={() => handleSelectOption(q.id, opt.value, opt.label)}
-                              className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-lg text-xs font-medium transition border border-indigo-200 dark:border-indigo-800"
+                              className="min-h-[44px] px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 dark:active:bg-indigo-800 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-semibold transition border border-indigo-200 dark:border-indigo-800 touch-manipulation flex items-center justify-center"
                             >
                               {opt.label}
                             </button>
@@ -297,9 +359,36 @@ export default function CoachView() {
             {msg.proposal && (
               <div className="w-full max-w-[90%] md:max-w-[85%]">
                 {msg.proposalStatus === 'accepted' ? (
-                  <div className="mt-2 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-emerald-800 dark:text-emerald-300 text-xs flex items-center space-x-2">
-                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-                    <span>Cette proposition a été validée et le nouvel agenda a été appliqué.</span>
+                  <div className="mt-2 p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-emerald-800 dark:text-emerald-300 text-xs space-y-1.5">
+                    <div className="flex items-center space-x-2 font-medium">
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                      <span>Proposition validée et planning appliqué avec succès.</span>
+                    </div>
+                    {msg.executionSummary && (
+                      <div className="pl-6 text-[11px] space-y-0.5 text-emerald-700 dark:text-emerald-400">
+                        {msg.executionSummary.newLoad != null && (
+                          <p>Charge hebdomadaire projetée : <strong>{msg.executionSummary.newLoad} TSS</strong> {msg.executionSummary.loadDelta ? `(${msg.executionSummary.loadDelta > 0 ? '+' : ''}${msg.executionSummary.loadDelta} TSS)` : ''}</p>
+                        )}
+                        {msg.executionSummary.affectedWorkouts && msg.executionSummary.affectedWorkouts.length > 0 && (
+                          <p>Séances ajustées : {msg.executionSummary.affectedWorkouts.map(w => `${w.sport} (${w.date})`).join(', ')}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : msg.proposalStatus === 'obsolete' ? (
+                  <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-amber-800 dark:text-amber-300 text-xs flex items-center space-x-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                    <span>Cette proposition est obsolète : ton planning ou le statut des séances a évolué entre-temps. Aucune modification n'a été appliquée.</span>
+                  </div>
+                ) : msg.proposalStatus === 'error' ? (
+                  <div className="mt-2 p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl text-rose-800 dark:text-rose-300 text-xs space-y-1">
+                    <div className="flex items-center space-x-2 font-medium">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                      <span>Échec de l'application & Rollback atomique.</span>
+                    </div>
+                    <p className="pl-6 text-[11px] text-rose-700 dark:text-rose-400">
+                      {msg.errorMessage || "Une incohérence a été détectée. Ton planning a été intégralement préservé dans son état initial."}
+                    </p>
                   </div>
                 ) : msg.proposalStatus === 'refused' ? (
                   <div className="mt-2 p-3 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-500 dark:text-slate-400 text-xs">
@@ -352,24 +441,24 @@ export default function CoachView() {
       </div>
 
       {/* Quick Prompts */}
-      <div className="px-4 py-2 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border-t border-slate-200/50 dark:border-slate-700/50 overflow-x-auto flex gap-2 no-scrollbar">
+      <div className="px-4 py-2 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border-t border-slate-200/50 dark:border-slate-700/50 overflow-x-auto flex gap-2 no-scrollbar touch-pan-x">
         {QUICK_PROMPTS.map((prompt) => (
           <button
             key={prompt}
             type="button"
             onClick={() => sendMessage(prompt)}
             disabled={isLoading || isExecuting}
-            className="whitespace-nowrap px-3 py-1.5 bg-white dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 hover:text-indigo-600 rounded-full text-xs border border-slate-200 dark:border-slate-600 transition flex items-center gap-1.5 disabled:opacity-50"
+            className="whitespace-nowrap min-h-[40px] px-3.5 py-2 bg-white dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-slate-600 active:bg-indigo-100 text-slate-700 dark:text-slate-200 hover:text-indigo-600 rounded-full text-xs font-medium border border-slate-200 dark:border-slate-600 transition flex items-center gap-1.5 disabled:opacity-50 touch-manipulation active:scale-95"
           >
-            <Sparkles className="w-3 h-3 text-indigo-500" />
+            <Sparkles className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
             {prompt}
           </button>
         ))}
       </div>
 
       {/* Input bar */}
-      <div className="p-4 bg-white dark:bg-slate-800 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-10 sticky bottom-0">
-        <form onSubmit={handleSend} className="flex space-x-2 relative">
+      <div className="p-3 md:p-4 bg-white dark:bg-slate-800 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-10 sticky bottom-0">
+        <form onSubmit={handleSend} className="flex space-x-2 relative items-center">
           <input
             type="text"
             value={input}
@@ -381,7 +470,7 @@ export default function CoachView() {
           <button
             type="submit"
             disabled={!input.trim() || isLoading || isExecuting}
-            className="p-3 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center bg-indigo-600 text-white rounded-full hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-manipulation"
           >
             <Send className="w-5 h-5" />
           </button>

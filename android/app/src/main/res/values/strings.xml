@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">plana</string>
+    <string name="title_activity_main">plana</string>
+    <string name="package_name">org.plana.app</string>
+    <string name="custom_url_scheme">org.plana.app</string>
+    <string name="background_notification_title">Measuring your health and fitness data.</string>    <string name="background_notification_description">The app is running in the background.</string>    <string name="privacy_policy_url"/></resources>

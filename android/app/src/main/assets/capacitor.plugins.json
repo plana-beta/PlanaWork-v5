@@ -1,0 +1,6 @@
+[
+	{
+		"pkg": "@capacitor/health-fitness",
+		"classpath": "com.capacitorjs.plugins.healthfitness.HealthFitnessPlugin"
+	}
+]

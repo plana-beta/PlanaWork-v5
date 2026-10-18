@@ -1,0 +1,8 @@
+{
+  "name": "PlanaWork",
+  "description": "Application mobile de suivi de l'entraînement (Fitness, Fatigue, Forme) et santé.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

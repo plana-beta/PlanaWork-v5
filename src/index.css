@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+@theme {
+  --color-plana-orange: #F26A00;
+  --color-plana-blue: #3B82F6;
+  --color-plana-green: #22A06B;
+  --color-plana-purple: #8B5CF6;
+  --color-plana-black: #111111;
+  --color-plana-white: #FFFFFF;
+  --color-plana-bg: #F8F9FA;
+}
+
+@layer base {
+  body {
+    @apply bg-plana-bg text-plana-black;
+    -webkit-tap-highlight-color: transparent;
+  }
+}

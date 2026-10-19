@@ -8,12 +8,14 @@ import { format, addDays, startOfWeek, isSameDay, startOfMonth, endOfMonth, each
 import { fr } from 'date-fns/locale';
 import { Target, CheckCircle2, Activity as ActivityIcon, Plus, X, Flame, 
   Calendar as CalendarIcon, Bike, Footprints, Waves, Dumbbell, MapPin, 
-  Clock, Gauge, ArrowRight, Trash2, Heart, Zap, RefreshCw 
+  Clock, Gauge, ArrowRight, Trash2, Heart, Zap, RefreshCw, UploadCloud, TrendingUp 
 } from 'lucide-react';
 import { cn } from '../utils';
 import { calculateNP } from '../lib/trainingEngine';
 import { EventsListModal, EventForm } from '../components/EventModals';
 import { EventGoal } from '../types';
+import { WorkoutImportModal } from '../components/WorkoutImportModal';
+import { WorkoutReconciliationModal } from '../components/WorkoutReconciliationModal';
 
 const TEMPLATES = [
   { id: 't1', title: 'Endurance Fondamentale', sport: 'Ride', duration: 120, tss: 90, if: 0.70, desc: 'Sortie longue en zone 2.' },
@@ -31,6 +33,9 @@ export default function PlanningView() {
   const [currentMonth, setCurrentMonth] = useState(() => new Date());
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEventsModal, setShowEventsModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showReconciliationModal, setShowReconciliationModal] = useState(false);
+  const [selectedReconciledWorkout, setSelectedReconciledWorkout] = useState<PlannedWorkout | null>(null);
   const [editingEvent, setEditingEvent] = useState<EventGoal | null | 'new'>(null);
   
   // Add/Edit Form State
@@ -302,6 +307,14 @@ export default function PlanningView() {
         <h2 className="text-2xl font-black text-plana-black tracking-wide">Planning</h2>
         <div className="flex items-center gap-2">
           <button 
+            type="button"
+            onClick={() => setShowImportModal(true)}
+            className="px-3 py-2 h-10 rounded-2xl bg-white border border-gray-200 text-slate-600 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm hover:bg-gray-50 transition-colors touch-manipulation active:scale-95"
+            title="Importer des séances (FIT, TCX, GPX, CSV, JSON, PDF)"
+          >
+            <UploadCloud size={14} className="text-indigo-600" /> Importer
+          </button>
+          <button 
             onClick={() => setShowEventsModal(true)}
             className="px-3 py-2 h-10 rounded-2xl bg-white border border-gray-200 text-slate-600 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm hover:bg-gray-50 transition-colors"
           >
@@ -510,6 +523,19 @@ export default function PlanningView() {
                       {activity.status === 'completed' ? 'Terminé' : activity.status === 'missed' ? 'Manqué' : 'Prévu'}
                       {activity.timeOfDay && ` • ${activity.timeOfDay === 'morning' ? 'Matin' : activity.timeOfDay === 'afternoon' ? 'Après-midi' : 'Soir'}`}
                     </p>
+                    {activity.status === 'completed' && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedReconciledWorkout(activity);
+                          setShowReconciliationModal(true);
+                        }}
+                        className="mt-1.5 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 py-1 px-2.5 rounded-lg flex items-center gap-1 w-fit touch-manipulation active:scale-95 transition"
+                      >
+                        <TrendingUp size={12} /> Bilan Réalisé vs Prévu
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1116,6 +1142,23 @@ export default function PlanningView() {
           />
         )}
       </AnimatePresence>
+
+      <WorkoutImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+      />
+
+      <WorkoutReconciliationModal
+        isOpen={showReconciliationModal}
+        onClose={() => {
+          setShowReconciliationModal(false);
+          setSelectedReconciledWorkout(null);
+        }}
+        plannedWorkout={selectedReconciledWorkout}
+        onOpenCoach={() => {
+          useAppStore.getState().setActiveTab?.('coach');
+        }}
+      />
     </motion.div>
   );
 }

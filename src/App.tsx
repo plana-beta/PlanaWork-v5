@@ -17,7 +17,8 @@ import { AnimatePresence } from 'motion/react';
 import CoachView from './views/CoachView';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<TabID>('today');
+  const activeTab = useAppStore(state => state.activeTab);
+  const setActiveTab = useAppStore(state => state.setActiveTab);
   const athleteProfile = useAppStore(state => state.athleteProfile);
   const [isHydrated, setIsHydrated] = useState(false);
   const runAdaptation = useAppStore(state => state.runAdaptation);

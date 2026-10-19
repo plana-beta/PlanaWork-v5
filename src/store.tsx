@@ -2,7 +2,7 @@ import React from 'react';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { resilientStorage, sanitizeHydratedState } from './lib/resilientStorage';
-import { BikeComponent, MetricData, PmcData, EventGoal } from './types';
+import { BikeComponent, MetricData, PmcData, EventGoal, TabID } from './types';
 import { AthleteProfile, PlannedWorkout, ActualWorkout } from './domain/models';
 import { CoachDecision } from './domain/coachTypes';
 import {
@@ -44,7 +44,9 @@ interface AppState {
   pmc: PmcData[];
   events: EventGoal[];
   ftp: number;
+  activeTab: TabID;
 
+  setActiveTab: (tab: TabID) => void;
   setFtp: (ftp: number) => void;
   
   addPlannedWorkout: (p: PlannedWorkout) => void;
@@ -79,6 +81,7 @@ interface AppState {
   coachErrors: CoachProposalError[];
 
   addWorkoutFeedback: (feedback: WorkoutFeedback) => void;
+  updateWorkoutFeedback: (feedback: WorkoutFeedback) => void;
   addWorkoutObservations: (observations: WorkoutObservation[]) => void;
   addAthletePreference: (pref: AthletePreference) => void;
   removeAthletePreference: (id: string) => void;
@@ -138,8 +141,9 @@ export const useAppStore = create<AppState>()(
       components: [],
       events: [],
       metrics: [],
-      ftp: 250,
       pmc: [],
+      activeTab: 'today' as TabID,
+      setActiveTab: (tab) => set({ activeTab: tab }),
 
       setFtp: (ftp) => set((state) => ({ ftp, pmc: generatePMC(state.actualWorkouts, ftp, state.athleteProfile?.hrMax) })),
       
@@ -205,7 +209,19 @@ export const useAppStore = create<AppState>()(
       coachErrors: [],
 
       addWorkoutFeedback: (feedback) => set((state) => {
-        const newFeedbacks = [feedback, ...state.workoutFeedbacks];
+        // Déduplication & traçabilité : mettre à jour le feedback existant s'il correspond
+        const existingIdx = state.workoutFeedbacks.findIndex(
+          f => f.id === feedback.id ||
+               (feedback.actualWorkoutId && f.actualWorkoutId === feedback.actualWorkoutId) ||
+               (feedback.workoutId && f.workoutId === feedback.workoutId && f.date === feedback.date)
+        );
+        let newFeedbacks: WorkoutFeedback[];
+        if (existingIdx !== -1) {
+          newFeedbacks = [...state.workoutFeedbacks];
+          newFeedbacks[existingIdx] = { ...newFeedbacks[existingIdx], ...feedback, updatedAt: new Date().toISOString() };
+        } else {
+          newFeedbacks = [feedback, ...state.workoutFeedbacks];
+        }
 
         // Trouver la séance réelle et planifiée correspondante
         const actualWorkout = state.actualWorkouts.find(
@@ -244,6 +260,10 @@ export const useAppStore = create<AppState>()(
           athleteHabits: updatedHabits
         };
       }),
+
+      updateWorkoutFeedback: (feedback) => {
+        useAppStore.getState().addWorkoutFeedback(feedback);
+      },
 
       addWorkoutObservations: (observations) => set((state) => {
         const updatedObservations = [...observations, ...state.workoutObservations];

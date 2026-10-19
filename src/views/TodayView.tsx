@@ -5,8 +5,9 @@ import { fr } from 'date-fns/locale';
 import { Play, Zap, Droplets, Bike, Footprints, AlertCircle, Info, TrendingUp, CheckCircle, Bell } from 'lucide-react';
 import { useAppStore } from '../store';
 import ActiveWorkoutView from './ActiveWorkoutView';
-import { PlannedWorkout } from '../domain/models';
+import { PlannedWorkout, ActualWorkout } from '../domain/models';
 import { generateRecommendations } from '../lib/recommendationEngine';
+import { WorkoutReconciliationModal } from '../components/WorkoutReconciliationModal';
 
 export default function TodayView() {
   const today = new Date();
@@ -42,6 +43,9 @@ export default function TodayView() {
   else if (currentPmc.atl > 50) { fatigueText = 'Modérée'; fatigueColor = 'text-amber-500'; }
 
   const [activeWorkout, setActiveWorkout] = useState<PlannedWorkout | null>(null);
+  const [showReconciliationModal, setShowReconciliationModal] = useState(false);
+  const [selectedActual, setSelectedActual] = useState<ActualWorkout | null>(null);
+  const completedToday = actualWorkouts.find(w => w.date === dateStr);
 
   const getSportIcon = (sport: string) => {
     switch (sport) {
@@ -189,6 +193,33 @@ export default function TodayView() {
           </div>
         </div>
 
+        {/* Séance réalisée aujourd'hui (Rapprochement & Feedback) */}
+        {completedToday && (
+          <div className="bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-3xl p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+                <CheckCircle size={15} className="text-emerald-600" /> Séance réalisée aujourd'hui
+              </span>
+              <span className="text-xs font-bold text-emerald-700 bg-white/70 dark:bg-black/30 px-2.5 py-0.5 rounded-full">
+                {completedToday.durationMin} min • {completedToday.tss ? `${completedToday.tss} TSS` : completedToday.sport}
+              </span>
+            </div>
+            <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
+              {completedToday.title || `Activité de ${completedToday.sport}`}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedActual(completedToday);
+                setShowReconciliationModal(true);
+              }}
+              className="w-full min-h-[44px] py-2.5 bg-white dark:bg-slate-800 hover:bg-emerald-100 text-emerald-900 dark:text-emerald-200 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border border-emerald-200 dark:border-emerald-700 transition active:scale-95 touch-manipulation"
+            >
+              <TrendingUp size={14} /> Voir l'analyse Réalisé vs Prévu
+            </button>
+          </div>
+        )}
+
       </motion.div>
 
       <AnimatePresence>
@@ -199,6 +230,18 @@ export default function TodayView() {
           />
         )}
       </AnimatePresence>
+
+      <WorkoutReconciliationModal
+        isOpen={showReconciliationModal}
+        onClose={() => {
+          setShowReconciliationModal(false);
+          setSelectedActual(null);
+        }}
+        actualWorkout={selectedActual}
+        onOpenCoach={() => {
+          useAppStore.getState().setActiveTab?.('coach');
+        }}
+      />
     </>
   );
 }

@@ -3,10 +3,11 @@ import { motion } from 'motion/react';
 import { useAppStore } from '../store';
 import { generateRecommendations } from '../lib/recommendationEngine';
 import { useMemo } from 'react';
-import { Activity, Trophy, Zap, Watch, Edit2, LogOut, RefreshCw } from 'lucide-react';
+import { Activity, Trophy, Zap, Watch, Edit2, LogOut, RefreshCw, UploadCloud } from 'lucide-react';
 import { healthService } from '../services/healthService';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { WorkoutImportModal } from '../components/WorkoutImportModal';
 
 export default function ProfileView() {
   const store = useAppStore();
@@ -21,8 +22,8 @@ export default function ProfileView() {
   const setLastSyncedAt = useAppStore(s => s.setLastSyncedAt);
   
   const [syncMessage, setSyncMessage] = React.useState('');
-
   const [syncStats, setSyncStats] = React.useState<any>(null);
+  const [showImportModal, setShowImportModal] = React.useState(false);
 
   React.useEffect(() => {
   }, [setSyncStatus]);
@@ -214,13 +215,39 @@ export default function ProfileView() {
         )}
       </div>
 
+      {/* Import universel de fichiers d'entraînement (Phase 34) */}
+      <div className="bg-white border border-gray-100 rounded-3xl p-5 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+            <UploadCloud size={14} className="text-indigo-600"/> Import de Fichiers & Séances
+          </h3>
+          <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full font-bold">
+            FIT • TCX • GPX • CSV
+          </span>
+        </div>
+        <p className="text-xs text-slate-500 leading-relaxed font-medium">
+          Importez vos activités passées depuis Garmin, Wahoo, Strava ou vos fichiers pour enrichir l'historique et la courbe de forme (PMC).
+        </p>
+        <button
+          type="button"
+          onClick={() => setShowImportModal(true)}
+          className="w-full min-h-[44px] py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 touch-manipulation shadow-sm"
+        >
+          <UploadCloud size={16} /> Importer un fichier d'entraînement
+        </button>
+      </div>
+
       <button 
         onClick={resetProfile}
-        className="w-full mt-4 py-4 rounded-2xl bg-red-50 text-red-600 font-bold tracking-wide flex items-center justify-center gap-2 transition-all active:scale-95"
+        className="w-full mt-4 py-4 rounded-2xl bg-red-50 text-red-600 font-bold tracking-wide flex items-center justify-center gap-2 transition-all active:scale-95 touch-manipulation"
       >
         <LogOut size={18} /> Réinitialiser le profil
       </button>
 
+      <WorkoutImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+      />
     </motion.div>
   );
 }

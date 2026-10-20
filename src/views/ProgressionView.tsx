@@ -16,12 +16,29 @@ import {
 import { format, parseISO, subDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
+import { TrainingProgressionService } from '../services/TrainingProgressionService';
+import { TrainingProgressionPanel } from '../components/TrainingProgressionPanel';
+
 export default function ProgressionView() {
   const store = useAppStore();
   const pmc = store.pmc;
   const today = new Date();
   const recommendations = useMemo(() => generateRecommendations(store.athleteProfile, store.plannedWorkouts, store.actualWorkouts, store.pmc, today), [store, today]);
   const synthesis = recommendations.find(r => r.type === 'RECOVERY' || r.type === 'PROGRESS') || recommendations[0];
+
+  const progressionAnalysis = useMemo(() => {
+    return TrainingProgressionService.analyzeProgression({
+      athleteProfile: store.athleteProfile,
+      plannedWorkouts: store.plannedWorkouts,
+      actualWorkouts: store.actualWorkouts,
+      feedbacks: store.workoutFeedbacks || [],
+      observations: store.workoutObservations || [],
+      pmc: store.pmc,
+      activeGoal: store.athleteProfile?.goal || store.events?.[0],
+      currentDate: today,
+      athleteId: store.athleteProfile?.id || 'current-athlete'
+    });
+  }, [store.athleteProfile, store.plannedWorkouts, store.actualWorkouts, store.workoutFeedbacks, store.workoutObservations, store.pmc, store.events]);
 
   const displayPmc = useMemo(() => {
     return pmc;
@@ -138,6 +155,9 @@ export default function ProgressionView() {
             )}
          </div>
       </div>
+
+      {/* Intelligence de progression et alignement (Phase 37) */}
+      <TrainingProgressionPanel analysis={progressionAnalysis} />
 
     </motion.div>
   );

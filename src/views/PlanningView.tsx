@@ -8,7 +8,7 @@ import { format, addDays, startOfWeek, isSameDay, startOfMonth, endOfMonth, each
 import { fr } from 'date-fns/locale';
 import { Target, CheckCircle2, Activity as ActivityIcon, Plus, X, Flame, 
   Calendar as CalendarIcon, Bike, Footprints, Waves, Dumbbell, MapPin, 
-  Clock, Gauge, ArrowRight, Trash2, Heart, Zap, RefreshCw, UploadCloud, TrendingUp 
+  Clock, Gauge, ArrowRight, Trash2, Heart, Zap, RefreshCw, UploadCloud, TrendingUp, Sparkles 
 } from 'lucide-react';
 import { cn } from '../utils';
 import { calculateNP } from '../lib/trainingEngine';
@@ -16,6 +16,8 @@ import { EventsListModal, EventForm } from '../components/EventModals';
 import { EventGoal } from '../types';
 import { WorkoutImportModal } from '../components/WorkoutImportModal';
 import { WorkoutReconciliationModal } from '../components/WorkoutReconciliationModal';
+import { AdaptiveTrainingService } from '../services/AdaptiveTrainingService';
+import { AdaptiveProposalModal } from '../components/AdaptiveProposalModal';
 
 const TEMPLATES = [
   { id: 't1', title: 'Endurance Fondamentale', sport: 'Ride', duration: 120, tss: 90, if: 0.70, desc: 'Sortie longue en zone 2.' },
@@ -25,7 +27,22 @@ const TEMPLATES = [
 ];
 
 export default function PlanningView() {
-  const { plannedWorkouts, actualWorkouts, addPlannedWorkout: addPlannedWorkout, updatePlannedWorkout: updatePlannedWorkout, removePlannedWorkout: removePlannedWorkout, ftp, events, addEvent, updateEvent, removeEvent } = useAppStore();
+  const {
+    plannedWorkouts,
+    actualWorkouts,
+    addPlannedWorkout,
+    updatePlannedWorkout,
+    removePlannedWorkout,
+    ftp,
+    events,
+    addEvent,
+    updateEvent,
+    removeEvent,
+    athleteProfile,
+    workoutFeedbacks,
+    workoutObservations,
+    pmc
+  } = useAppStore();
   
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [calendarMode, setCalendarMode] = useState<'week' | 'month'>('week');
@@ -36,7 +53,22 @@ export default function PlanningView() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showReconciliationModal, setShowReconciliationModal] = useState(false);
   const [selectedReconciledWorkout, setSelectedReconciledWorkout] = useState<PlannedWorkout | null>(null);
+  const [showAdaptiveModal, setShowAdaptiveModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState<EventGoal | null | 'new'>(null);
+
+  const adaptiveAnalysis = useMemo(() => {
+    if (!athleteProfile) return null;
+    return AdaptiveTrainingService.analyzeAndPropose({
+      athleteProfile,
+      plannedWorkouts,
+      actualWorkouts,
+      feedbacks: workoutFeedbacks,
+      observations: workoutObservations,
+      pmc
+    });
+  }, [athleteProfile, plannedWorkouts, actualWorkouts, workoutFeedbacks, workoutObservations, pmc]);
+
+  const activeAdaptiveProposal = adaptiveAnalysis?.proposals?.[0] || null;
   
   // Add/Edit Form State
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -328,6 +360,32 @@ export default function PlanningView() {
           </button>
         </div>
       </div>
+
+      {/* Bannière Proposition Adaptative */}
+      {activeAdaptiveProposal && activeAdaptiveProposal.status === 'PENDING' && (
+        <div className="mb-4 p-3.5 bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-2xl flex items-center justify-between gap-3 shadow-sm shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0">
+              <Sparkles size={16} />
+            </div>
+            <div className="truncate">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 block">
+                Adaptation suggérée par le Coach
+              </span>
+              <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                {activeAdaptiveProposal.rationale}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAdaptiveModal(true)}
+            className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-bold rounded-xl shrink-0 transition touch-manipulation active:scale-95 shadow-sm"
+          >
+            Examiner
+          </button>
+        </div>
+      )}
       
       {/* View Toggle */}
       <div className="flex bg-gray-100 p-1 rounded-2xl mb-6 shrink-0 w-full">
@@ -1158,6 +1216,12 @@ export default function PlanningView() {
         onOpenCoach={() => {
           useAppStore.getState().setActiveTab?.('coach');
         }}
+      />
+
+      <AdaptiveProposalModal
+        isOpen={showAdaptiveModal}
+        onClose={() => setShowAdaptiveModal(false)}
+        proposal={activeAdaptiveProposal}
       />
     </motion.div>
   );

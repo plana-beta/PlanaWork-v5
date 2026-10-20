@@ -6,6 +6,9 @@ import { generateRecommendations } from '../lib/recommendationEngine';
 import { useMemo } from 'react';
 import { differenceInDays, parseISO } from 'date-fns';
 
+import { TrainingProgressionService } from '../services/TrainingProgressionService';
+import { GoalProgressCard } from '../components/GoalProgressCard';
+
 export default function GoalView() {
   const store = useAppStore();
   const profile = store.athleteProfile;
@@ -13,7 +16,21 @@ export default function GoalView() {
   const recommendations = useMemo(() => generateRecommendations(store.athleteProfile, store.plannedWorkouts, store.actualWorkouts, store.pmc, today), [store, today]);
   const goalRec = recommendations.find(r => r.type === 'GOAL');
 
-  const goal = profile?.goal;
+  const goal = profile?.goal || store.events?.[0];
+
+  const progressionAnalysis = useMemo(() => {
+    return TrainingProgressionService.analyzeProgression({
+      athleteProfile: store.athleteProfile,
+      plannedWorkouts: store.plannedWorkouts,
+      actualWorkouts: store.actualWorkouts,
+      feedbacks: store.workoutFeedbacks || [],
+      observations: store.workoutObservations || [],
+      pmc: store.pmc,
+      activeGoal: goal,
+      currentDate: today,
+      athleteId: store.athleteProfile?.id || 'current-athlete'
+    });
+  }, [store.athleteProfile, store.plannedWorkouts, store.actualWorkouts, store.workoutFeedbacks, store.workoutObservations, store.pmc, goal]);
 
   if (!goal) {
     return (
@@ -29,7 +46,7 @@ export default function GoalView() {
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-5 pb-24 space-y-6">
       {/* Header */}
       <div className="text-center pt-8 pb-4">
-        <h2 className="text-3xl font-black text-plana-black tracking-wide mb-1">{goal.title || 'Objectif principal'}</h2>
+        <h2 className="text-3xl font-black text-plana-black tracking-wide mb-1">{(goal as any).title || (goal as any).name || 'Objectif principal'}</h2>
         <p className="text-sm text-slate-500 font-medium">{goal.date || 'Date à définir'}</p>
         
         {daysRemaining !== null && (
@@ -40,19 +57,8 @@ export default function GoalView() {
         )}
       </div>
 
-      {/* Préparation */}
-      <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm mt-4">
-        <div className="flex justify-between items-end mb-4">
-          <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Préparation</h3>
-          <span className="text-2xl font-black text-plana-black tracking-tight">
-            0 <span className="text-sm text-slate-400 font-bold">%</span>
-          </span>
-        </div>
-        <div className="h-3 bg-gray-100 rounded-full overflow-hidden flex">
-          <div className="h-full bg-plana-black rounded-full" style={{ width: '0%' }} />
-        </div>
-        <div className="text-xs text-slate-400 font-medium mt-3 text-center">Plus de données requises</div>
-      </div>
+      {/* Alignement & Progression déterministe (Phase 37) */}
+      <GoalProgressCard alignment={progressionAnalysis.goalAlignment} />
 
       {/* Ton niveau actuel */}
       <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">

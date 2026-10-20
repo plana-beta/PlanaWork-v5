@@ -642,7 +642,7 @@ describe('Phase 35 — Post-Workout Intelligence & Training Load Reconciliation'
     expect(res.proposedAdaptation).toBeDefined();
     expect(res.proposedAdaptation?.status).toBe('PROPOSED');
     expect(res.proposedAdaptation?.targetWorkoutId).toBe('plan-tomorrow');
-    expect(res.proposedAdaptation?.workoutUpdate?.targetDurationMin).toBeLessThan(60);
+    expect((res.proposedAdaptation?.workoutUpdate as any)?.targetDurationMin).toBeLessThan(60);
 
     // 2. RÈGLE STRICTE : Le store et le planning NE DOIVENT PAS être mutés automatiquement !
     const storeTomorrow = useAppStore.getState().plannedWorkouts.find(p => p.id === 'plan-tomorrow');
@@ -691,7 +691,7 @@ describe('Phase 35 — Post-Workout Intelligence & Training Load Reconciliation'
 
     // L'audit de décision doit être tracé
     const decisions = useAppStore.getState().coachDecisions;
-    expect(decisions.some(d => (d.proposal?.id === 'prop-validated-1' || d.proposalId === 'prop-validated-1') && d.userDecision === 'EXECUTED')).toBe(true);
+    expect(decisions.some(d => d.proposal?.id === 'prop-validated-1' && d.userDecision === 'EXECUTED')).toBe(true);
   });
 
   it('6.3 ne compense JAMAIS une séance manquée en ajoutant toute sa charge aux séances suivantes', () => {
@@ -725,8 +725,8 @@ describe('Phase 35 — Post-Workout Intelligence & Training Load Reconciliation'
     );
 
     // Soit pas d'adaptation, soit adaptation protectrice, mais JAMAIS de surcharge compensatoire
-    if (adaptation && adaptation.workoutUpdate?.targetTss) {
-      expect(adaptation.workoutUpdate.targetTss).toBeLessThanOrEqual(nextSession.targetTss || 40);
+    if (adaptation && (adaptation.workoutUpdate as any)?.targetTss) {
+      expect((adaptation.workoutUpdate as any).targetTss).toBeLessThanOrEqual(nextSession.targetTss || 40);
     }
   });
 

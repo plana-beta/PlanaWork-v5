@@ -141,6 +141,7 @@ export const useAppStore = create<AppState>()(
       components: [],
       events: [],
       metrics: [],
+      ftp: 250,
       pmc: [],
       activeTab: 'today' as TabID,
       setActiveTab: (tab) => set({ activeTab: tab }),

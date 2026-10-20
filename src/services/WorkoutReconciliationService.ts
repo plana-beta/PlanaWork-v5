@@ -186,7 +186,7 @@ export class WorkoutReconciliationService {
 
       // Vérification horaire si disponible
       let isTimeClose = true;
-      if (actual.startTime && candidate.startTime) {
+      if (actual.startTime && typeof candidate.startTime === 'string') {
         try {
           const t1 = parseISO(actual.startTime);
           const t2 = parseISO(candidate.startTime);
@@ -283,7 +283,7 @@ export class WorkoutReconciliationService {
     }
 
     // 2. Distance
-    const plannedDist = planned?.distanceKm;
+    const plannedDist = typeof planned?.distanceKm === 'number' ? planned.distanceKm : undefined;
     const actualDist = actual.distanceKm;
     if (plannedDist !== undefined && actualDist !== undefined) {
       const delta = parseFloat((actualDist - plannedDist).toFixed(2));

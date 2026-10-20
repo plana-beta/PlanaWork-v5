@@ -138,6 +138,184 @@ ${prompt}
     }
   });
 
+  // Adaptive Training Intelligence API
+  app.post("/api/adaptive/proposals", async (req, res) => {
+    try {
+      const athleteIdHeader = req.headers['x-athlete-id'] as string;
+      const { athleteId: bodyAthleteId, athleteProfile, plannedWorkouts, actualWorkouts, feedbacks, observations, pmc } = req.body;
+      const athleteId = athleteIdHeader || bodyAthleteId || athleteProfile?.id;
+
+      if (!athleteId) {
+        return res.status(401).json({ success: false, error: "AUTH_REQUIRED: Identifiant athlète requis." });
+      }
+
+      if (bodyAthleteId && athleteIdHeader && bodyAthleteId !== athleteIdHeader) {
+        return res.status(403).json({ success: false, error: "FORBIDDEN: Incohérence d'identité athlète." });
+      }
+
+      const { AdaptiveTrainingService } = await import("./src/services/AdaptiveTrainingService.js");
+      const result = AdaptiveTrainingService.analyzeAndPropose({
+        athleteProfile: athleteProfile || { id: athleteId, level: {}, availability: { weeklyHours: 10, availableDays: [] }, dataConnection: 'none' },
+        plannedWorkouts: plannedWorkouts || [],
+        actualWorkouts: actualWorkouts || [],
+        feedbacks: feedbacks || [],
+        observations: observations || [],
+        pmc: pmc || [],
+        athleteId
+      });
+
+      res.json({ success: true, result });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || "Erreur interne" });
+    }
+  });
+
+  app.post("/api/adaptive/execute", async (req, res) => {
+    try {
+      const athleteIdHeader = req.headers['x-athlete-id'] as string;
+      const { proposalId, athleteId: bodyAthleteId } = req.body;
+      const athleteId = athleteIdHeader || bodyAthleteId;
+
+      if (!proposalId || !athleteId) {
+        return res.status(400).json({ success: false, error: "INVALID_INPUT: proposalId et athleteId sont requis." });
+      }
+
+      if (bodyAthleteId && athleteIdHeader && bodyAthleteId !== athleteIdHeader) {
+        return res.status(403).json({ success: false, error: "FORBIDDEN: Incohérence d'identité athlète." });
+      }
+
+      const { AdaptiveTrainingService } = await import("./src/services/AdaptiveTrainingService.js");
+      const execResult = AdaptiveTrainingService.executeProposal(proposalId, athleteId);
+
+      if (!execResult.success) {
+        const statusCode = execResult.conflict ? 409 : (execResult.error?.includes('FORBIDDEN') ? 403 : 400);
+        return res.status(statusCode).json(execResult);
+      }
+
+      res.json(execResult);
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || "Erreur serveur" });
+    }
+  });
+
+  // Phase 37 — Training Progression & Goal Alignment API
+  app.post("/api/progression/analysis", async (req, res) => {
+    try {
+      const athleteIdHeader = req.headers['x-athlete-id'] as string;
+      const { athleteId: bodyAthleteId, athleteProfile, plannedWorkouts, actualWorkouts, feedbacks, observations, pmc, activeGoal, analysisDays } = req.body;
+      const athleteId = athleteIdHeader || bodyAthleteId || athleteProfile?.id;
+
+      if (!athleteId) {
+        return res.status(401).json({ success: false, error: "AUTH_REQUIRED: Identifiant athlète requis." });
+      }
+
+      if (bodyAthleteId && athleteIdHeader && bodyAthleteId !== athleteIdHeader) {
+        return res.status(403).json({ success: false, error: "FORBIDDEN: Incohérence d'identité athlète." });
+      }
+
+      const { TrainingProgressionService } = await import("./src/services/TrainingProgressionService.js");
+      const analysis = TrainingProgressionService.analyzeProgression({
+        athleteProfile: athleteProfile || { id: athleteId, level: {}, availability: { weeklyHours: 10, availableDays: [] }, dataConnection: 'none' },
+        plannedWorkouts: plannedWorkouts || [],
+        actualWorkouts: actualWorkouts || [],
+        feedbacks: feedbacks || [],
+        observations: observations || [],
+        pmc: pmc || [],
+        activeGoal,
+        analysisDays,
+        athleteId
+      });
+
+      res.json({ success: true, analysis });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || "Erreur interne" });
+    }
+  });
+
+  app.post("/api/progression/accept", async (req, res) => {
+    try {
+      const athleteIdHeader = req.headers['x-athlete-id'] as string;
+      const { proposalId, athleteId: bodyAthleteId, userMessage } = req.body;
+      const athleteId = athleteIdHeader || bodyAthleteId;
+
+      if (!proposalId || !athleteId) {
+        return res.status(400).json({ success: false, error: "INVALID_INPUT: proposalId et athleteId sont requis." });
+      }
+
+      if (bodyAthleteId && athleteIdHeader && bodyAthleteId !== athleteIdHeader) {
+        return res.status(403).json({ success: false, error: "FORBIDDEN: Incohérence d'identité athlète." });
+      }
+
+      const { TrainingProgressionService } = await import("./src/services/TrainingProgressionService.js");
+      const result = TrainingProgressionService.acceptProposal(proposalId, athleteId, { userMessage });
+
+      if (!result.success) {
+        const statusCode = result.error?.includes('FORBIDDEN') ? 403 : (result.error?.includes('NOT_FOUND') ? 404 : 400);
+        return res.status(statusCode).json(result);
+      }
+
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || "Erreur serveur" });
+    }
+  });
+
+  app.post("/api/progression/reject", async (req, res) => {
+    try {
+      const athleteIdHeader = req.headers['x-athlete-id'] as string;
+      const { proposalId, athleteId: bodyAthleteId, reason } = req.body;
+      const athleteId = athleteIdHeader || bodyAthleteId;
+
+      if (!proposalId || !athleteId) {
+        return res.status(400).json({ success: false, error: "INVALID_INPUT: proposalId et athleteId sont requis." });
+      }
+
+      if (bodyAthleteId && athleteIdHeader && bodyAthleteId !== athleteIdHeader) {
+        return res.status(403).json({ success: false, error: "FORBIDDEN: Incohérence d'identité athlète." });
+      }
+
+      const { TrainingProgressionService } = await import("./src/services/TrainingProgressionService.js");
+      const result = TrainingProgressionService.rejectProposal(proposalId, athleteId, reason);
+
+      if (!result.success) {
+        const statusCode = result.error?.includes('FORBIDDEN') ? 403 : 400;
+        return res.status(statusCode).json(result);
+      }
+
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || "Erreur serveur" });
+    }
+  });
+
+  app.post("/api/progression/execute", async (req, res) => {
+    try {
+      const athleteIdHeader = req.headers['x-athlete-id'] as string;
+      const { proposalId, athleteId: bodyAthleteId } = req.body;
+      const athleteId = athleteIdHeader || bodyAthleteId;
+
+      if (!proposalId || !athleteId) {
+        return res.status(400).json({ success: false, error: "INVALID_INPUT: proposalId et athleteId sont requis." });
+      }
+
+      if (bodyAthleteId && athleteIdHeader && bodyAthleteId !== athleteIdHeader) {
+        return res.status(403).json({ success: false, error: "FORBIDDEN: Incohérence d'identité athlète." });
+      }
+
+      const { TrainingProgressionService } = await import("./src/services/TrainingProgressionService.js");
+      const execResult = TrainingProgressionService.executeProposal(proposalId, athleteId);
+
+      if (!execResult.success) {
+        const statusCode = execResult.conflict ? 409 : (execResult.error?.includes('FORBIDDEN') ? 403 : 400);
+        return res.status(statusCode).json(execResult);
+      }
+
+      res.json(execResult);
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || "Erreur serveur" });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
